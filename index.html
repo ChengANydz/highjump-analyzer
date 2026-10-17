@@ -3,9 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>跳远动作技术分析系统 | Pro</title>
+    <title>跳高动作技术分析系统 | Pro</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- PoseNet + tfjs 2.8.4 -->
     <script src="https://unpkg.com/@tensorflow/tfjs@2.8.4/dist/tf.min.js"></script>
     <script src="https://unpkg.com/@tensorflow-models/posenet@2.2.2/dist/posenet.min.js"></script>
     <style>
@@ -120,13 +119,13 @@
 <div class="max-w-7xl mx-auto px-4 py-8">
     <header class="mb-8 text-center lg:text-left">
         <div class="flex items-center justify-center lg:justify-start gap-3 mb-2">
-            <span class="text-4xl">🏃</span>
+            <span class="text-4xl">🧗</span>
             <h1 class="text-3xl font-bold bg-gradient-to-r from-blue-600 to-emerald-600 bg-clip-text text-transparent">
-                跳远动作技术分析系统
+                跳高动作技术分析系统
             </h1>
             <span class="px-3 py-1 bg-blue-100 text-blue-700 text-xs font-bold rounded-full">PRO</span>
         </div>
-        <p class="text-slate-600">AI逐帧追踪 · 起跳点定位 · 关节角度计算 + 自动跳远技术诊断</p>
+        <p class="text-slate-600">AI逐帧姿态追踪 · 踏跳点定位 · 关节角度计算 + 专项技术诊断</p>
     </header>
 
     <div class="grid lg:grid-cols-5 gap-6">
@@ -139,13 +138,33 @@
                 </span>
             </div>
 
+            <!-- 项目 + 采样频率选择 -->
+            <div class="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">跳高技术类型</label>
+                    <select id="jumpTypeSelect" class="w-full border border-slate-300 rounded-lg px-3 py-2">
+                        <option value="back">背越式跳高</option>
+                        <option value="straddle">跨越式跳高</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">采样间隔（帧步长）</label>
+                    <select id="sampleStepSelect" class="w-full border border-slate-300 rounded-lg px-3 py-2">
+                        <option value="0.02">0.02s (50fps，高精度，慢)</option>
+                        <option value="0.033" selected>0.033s (30fps，推荐)</option>
+                        <option value="0.1">0.1s (10fps，平衡)</option>
+                        <option value="0.2">0.2s (5fps，快速预览)</option>
+                    </select>
+                </div>
+            </div>
+
             <div class="mb-6 p-4 border-2 border-dashed border-slate-300 rounded-xl hover:border-blue-400 transition-colors bg-slate-50">
                 <label class="flex flex-col items-center cursor-pointer">
                     <svg class="w-8 h-8 text-slate-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
                     </svg>
-                    <span class="text-sm text-slate-600 font-medium">点击上传跳远视频（MP4格式）</span>
-                    <span class="text-xs text-slate-400 mt-1">支持拖拽上传，建议分辨率720p</span>
+                    <span class="text-sm text-slate-600 font-medium">点击上传跳高视频（MP4格式）</span>
+                    <span class="text-xs text-slate-400 mt-1">建议侧面拍摄，720p，完整捕捉助跑、踏跳、过杆</span>
                     <input type="file" id="videoFile" accept="video/mp4" class="hidden">
                 </label>
             </div>
@@ -178,7 +197,7 @@
 
         <div class="lg:col-span-2 bg-white rounded-2xl shadow-xl p-6 border border-slate-200 flex flex-col">
             <div class="flex items-center justify-between mb-4">
-                <h2 class="text-xl font-semibold text-slate-800">📊 全程动作诊断报告</h2>
+                <h2 class="text-xl font-semibold text-slate-800">📊 跳高全程动作诊断报告</h2>
                 <span class="text-xs px-2 py-1 bg-emerald-100 text-emerald-700 rounded-full font-medium">智能采样</span>
             </div>
             
@@ -190,8 +209,8 @@
                     <p>上传视频并点击分析后，此处将显示：</p>
                     <ul class="text-sm mt-2 text-left inline-block">
                         <li>• 逐帧关节角度数据</li>
-                        <li>• 起跳点定位 + 跳远专项技术诊断</li>
-                        <li>• 技术缺陷判定与改进方案</li>
+                        <li>• 踏跳点定位 + 专项诊断</li>
+                        <li>• 踏跳、摆动腿、过杆姿态评估与改进方案</li>
                     </ul>
                 </div>
             </div>
@@ -207,7 +226,7 @@
                 </div>
                 <div class="bg-purple-50 rounded-lg p-3 text-center">
                     <div class="text-2xl font-bold text-purple-600" id="statJump">-</div>
-                    <div class="text-xs text-purple-600 mt-1">起跳时刻</div>
+                    <div class="text-xs text-purple-600 mt-1">踏跳时刻</div>
                 </div>
             </div>
         </div>
@@ -225,10 +244,12 @@ const statusBadge = document.getElementById('statusBadge');
 const reportEl = document.getElementById('report');
 const angleTextEl = document.getElementById('angleText');
 const fileInput = document.getElementById('videoFile');
+const jumpTypeSelect = document.getElementById('jumpTypeSelect');
+const sampleStepSelect = document.getElementById('sampleStepSelect');
 
-// ========== 新增：关键点滑动滤波，解决骨架抖动、不贴合人体 ==========
+// 关键点滑动时序滤波，解决骨架抖动
 const filterBuffer = [];
-const FILTER_WINDOW = 3; // 取最近3帧做移动平均，平滑轨迹
+const FILTER_WINDOW = 3;
 function smoothKeypoints(newKpRaw) {
     filterBuffer.push(newKpRaw);
     if(filterBuffer.length > FILTER_WINDOW) filterBuffer.shift();
@@ -257,7 +278,7 @@ function smoothKeypoints(newKpRaw) {
     return smoothed;
 }
 
-// 角度计算函数
+// 三点夹角计算
 function calcAngle(pA, vertex, pB) {
     const v1x = pA.x - vertex.x, v1y = pA.y - vertex.y;
     const v2x = pB.x - vertex.x, v2y = pB.y - vertex.y;
@@ -269,7 +290,6 @@ function calcAngle(pA, vertex, pB) {
     return rad * 180 / Math.PI;
 }
 
-// 状态更新
 function updateStatus(text, type = 'loading') {
     const colors = {
         loading: 'bg-yellow-500',
@@ -287,7 +307,6 @@ btnLoadModel.onclick = async () => {
     try {
         updateStatus('正在加载PoseNet模型...', 'loading');
         btnLoadModel.disabled = true;
-        // 降低分辨率，减少计算，缓解延迟
         net = await posenet.load({
             architecture: 'MobileNetV1',
             outputStride:16,
@@ -315,7 +334,7 @@ fileInput.onchange = e => {
         canvas.height = video.videoHeight;
         offCanvas.width = video.videoWidth;
         offCanvas.height = video.videoHeight;
-        filterBuffer.length = 0; // 切换视频清空滤波缓存
+        filterBuffer.length = 0;
         updateStatus('视频已就绪', 'success');
     };
 };
@@ -331,55 +350,134 @@ async function analyzeFrame(t, showPose = true) {
     await seekTo(t);
     offCtx.drawImage(video, 0, 0, offCanvas.width, offCanvas.height);
     const pose = await net.estimateSinglePose(offCanvas);
-    // 时序平滑
     const kp = smoothKeypoints(pose.keypoints);
     const th = 0.4;
     const angles = { time: t };
+    // 左膝：髋(11)-膝(13)-踝(15)
     if(kp[11].score>th && kp[13].score>th && kp[15].score>th)
         angles.leftKnee = calcAngle(kp[11], kp[13], kp[15]);
+    // 右膝：髋(12)-膝(14)-踝(16)
     if(kp[12].score>th && kp[14].score>th && kp[16].score>th)
-        angles.rightKnee = calcAngle(kp[6], kp[12], kp[14]);
+        angles.rightKnee = calcAngle(kp[12], kp[14], kp[16]);
+    //左髋：肩(5)-髋(11)-膝(13)
     if(kp[5].score>th && kp[11].score>th && kp[13].score>th)
         angles.leftHip = calcAngle(kp[5], kp[11], kp[13]);
+    //右髋：肩(6)-髋(12)-膝(14)
     if(kp[6].score>th && kp[12].score>th && kp[14].score>th)
         angles.rightHip = calcAngle(kp[6], kp[12], kp[14]);
+
+    // 躯干角：左肩5 - 髋11 与竖直方向夹角
+    if(kp[5].score>th && kp[11].score>th){
+        angles.torsoAngle = calcAngle({x:kp[5].x, y:kp[5].y-100}, kp[11], kp[5]);
+    }
+    // 摆动腿髋角（用于跨越式）
+    if(kp[5].score>th && kp[11].score>th && kp[13].score>th){
+        angles.swingHipAngle = calcAngle(kp[5], kp[11], kp[13]);
+    }
     
     if(showPose) drawPose(kp);
     return angles;
 }
 
-// ========== 跳远专项自动诊断函数 ==========
-function getJumpDiagnosis(jumpDataList, jumpCenterTime){
-    // 提取起跳窗口内所有膝关节角度
+// ====================== 两套专项诊断函数 ======================
+// 背越式跳高诊断
+function diagnosisBackStyle(jumpDataList, jumpCenterTime){
     const window = jumpDataList.filter(d=>Math.abs(d.time-jumpCenterTime)<0.5);
-    let minKneeAngle = 180;
+    let minKneeAngle = null;
     let maxHipAngle = 0;
+    let maxTorsoAngle = 0;
     window.forEach(d=>{
-        if(d.rightKnee && d.rightKnee < minKneeAngle) minKneeAngle = d.rightKnee;
+        if(d.rightKnee){
+            if(minKneeAngle === null || d.rightKnee < minKneeAngle) minKneeAngle = d.rightKnee;
+        }
         if(d.rightHip && d.rightHip > maxHipAngle) maxHipAngle = d.rightHip;
+        if(d.torsoAngle && d.torsoAngle > maxTorsoAngle) maxTorsoAngle = d.torsoAngle;
     })
     const diagnosis = {
         minKnee: minKneeAngle,
         maxHip: maxHipAngle,
+        maxTorso: maxTorsoAngle,
         problems:[],
         suggestions:[]
     };
-    // 判定规则，对标优秀运动员标准
-    if(minKneeAngle < 130){
-        diagnosis.problems.push("❌ 起跳缓冲屈膝过大（膝角"+minKneeAngle.toFixed(1)+"°，优秀运动员135~145°），过度屈膝会大量损耗水平助跑速度，蹬伸发力效率下降，损失远度。");
-        diagnosis.suggestions.push("✅ 改进：起跳着板时主动保持腿部刚性，减少膝关节下沉幅度；练习原地快速起跳（小幅度缓冲），强化支撑腿刚性。");
-    }else if(minKneeAngle >150){
-        diagnosis.problems.push("⚠️ 起跳缓冲不足，膝关节弯曲太少，没有充分利用肌肉弹性储能，蹬伸爆发力不足。");
-        diagnosis.suggestions.push("✅ 改进：助跑最后一步适度下压缓冲，做箱式跳、连续单脚跳，练习可控的屈膝缓冲。");
+    if(minKneeAngle === null){
+        diagnosis.problems.push("⚠️ 未能有效识别踏跳腿膝关节数据，请检查视频：侧面拍摄，全身完整入镜，肢体不要裁切。");
+        diagnosis.suggestions.push("✅ 拍摄建议：侧面视角，完整捕捉弧线助跑最后一步、踏跳离地、腾空过杆全过程。");
+    }else if(minKneeAngle < 150){
+        diagnosis.problems.push(`❌ 踏跳阶段屈膝过大（膝角${minKneeAngle.toFixed(1)}°）。背越式踏跳核心是刚性支撑，屈膝过多会吸收垂直冲击力，大幅损失向上腾起速度，降低起跳高度。`);
+        diagnosis.suggestions.push("✅ 改进训练：短助跑刚性踏跳、原地单腿硬支撑跳，体会踏跳瞬间腿部不主动下蹲，保持支撑刚性。");
+    }else if(minKneeAngle > 172){
+        diagnosis.problems.push(`⚠️ 踏跳支撑几乎无缓冲，腿部刚性极强，但缺少微小弹性形变，发力衔接不够顺滑。`);
+        diagnosis.suggestions.push("✅ 改进训练：连续踏跳摸高，保留踏跳极小幅缓冲，感受弹性发力。");
     }else{
-        diagnosis.problems.push("✅ 膝关节缓冲角度处于优秀区间，缓冲控制良好。");
+        diagnosis.problems.push(`✅ 踏跳膝关节角度(${minKneeAngle.toFixed(1)}°)处于背越式跳高理想区间，支撑刚性控制良好。`);
     }
 
-    if(maxHipAngle <160){
-        diagnosis.problems.push("❌ 起跳蹬伸阶段伸髋不充分，髋关节打开不足，重心向前上方推送不够，腾起高度不足。");
-        diagnosis.suggestions.push("✅ 改进：强化臀大肌与髋伸力量；练习臀推、跨步跳，体会起跳瞬间髋关节向前顶送的发力感。");
+    // 髋部评估：踏跳伸髋
+    if(maxHipAngle <155){
+        diagnosis.problems.push(`❌ 踏跳伸髋不足，髋关节打开不够，重心向上推送力量不足，垂直起跳力量损失。`);
+        diagnosis.suggestions.push("✅ 改进训练：臀推、跨步跳，强化髋伸肌群，体会踏跳瞬间向前上方顶髋发力。");
     }else{
-        diagnosis.problems.push("✅ 蹬伸阶段髋关节伸展充分。");
+        diagnosis.problems.push(`✅ 踏跳阶段髋关节伸展充分。`);
+    }
+
+    // 腾空躯干/倒肩评估
+    if(maxTorsoAngle <70){
+        diagnosis.problems.push(`⚠️ 腾空倒肩不足，过杆时背弓打开不够，无法充分利用身体重心，容易碰杆。`);
+        diagnosis.suggestions.push("✅ 改进训练：原地背弓挺髋练习、垫上背弓，练习踏跳后快速倒肩、打开躯干形成背弓。");
+    }else{
+        diagnosis.problems.push(`✅ 腾空阶段躯干倒肩充分，背弓姿态良好。`);
+    }
+    return diagnosis;
+}
+
+// 跨越式跳高诊断
+function diagnosisStraddleStyle(jumpDataList, jumpCenterTime){
+    const window = jumpDataList.filter(d=>Math.abs(d.time-jumpCenterTime)<0.5);
+    let minKneeAngle = null;
+    let maxSwingHip = 0;
+    let torsoPeak = 0;
+    window.forEach(d=>{
+        if(d.rightKnee){
+            if(minKneeAngle === null || d.rightKnee < minKneeAngle) minKneeAngle = d.rightKnee;
+        }
+        if(d.swingHipAngle && d.swingHipAngle>maxSwingHip) maxSwingHip = d.swingHipAngle;
+        if(d.torsoAngle && d.torsoAngle>torsoPeak) torsoPeak = d.torsoAngle;
+    });
+    const diagnosis = {
+        minKnee: minKneeAngle,
+        maxSwingHip:maxSwingHip,
+        torsoPeak:torsoPeak,
+        problems:[],
+        suggestions:[]
+    };
+    if(minKneeAngle === null){
+        diagnosis.problems.push("⚠️ 未能识别踏跳腿膝关节数据，请保证全身入镜，侧面拍摄。");
+        diagnosis.suggestions.push("✅ 拍摄：侧面完整记录助跑踏跳、摆动腿上摆、过杆落地。");
+    }else if(minKneeAngle <130){
+        diagnosis.problems.push(`❌ 踏跳屈膝过多(${minKneeAngle.toFixed(1)}°)，下蹲太深，起跳发力滞后，损失向上速度。`);
+        diagnosis.suggestions.push("✅ 训练：短助跑跨越式踏跳，控制踏跳腿屈膝幅度，快速蹬伸。");
+    }else if(minKneeAngle>160){
+        diagnosis.problems.push(`⚠️ 踏跳屈膝太少，缺少弹性缓冲，蹬伸发力不充分。`);
+        diagnosis.suggestions.push("✅ 训练：原地单腿弹性蹬跳，体会适度屈膝缓冲再快速蹬伸。");
+    }else{
+        diagnosis.problems.push(`✅ 踏跳膝角${minKneeAngle.toFixed(1)}°，跨越式踏跳屈膝缓冲处于理想区间。`);
+    }
+
+    // 摆动腿上摆评估（跨越式核心）
+    if(maxSwingHip <110){
+        diagnosis.problems.push(`❌ 摆动腿上摆高度不足，摆动带动重心提升效果弱，起跳高度受限。`);
+        diagnosis.suggestions.push("✅ 训练：原地高摆腿、助跑单腿摆腿摸高，强化摆动腿快速向上带起。");
+    }else{
+        diagnosis.problems.push(`✅ 摆动腿上摆充分，摆动提重心效果良好。`);
+    }
+
+    // 上体前倾评估
+    if(torsoPeak <45){
+        diagnosis.problems.push(`⚠️ 过杆上体前倾不足，容易坐杆，臀部碰杆。`);
+        diagnosis.suggestions.push("✅ 训练：垫上过杆模仿，踏跳后上体主动前倾，使身体越过横杆。");
+    }else{
+        diagnosis.problems.push(`✅ 过杆上体前倾控制良好，利于身体顺利越过横杆。`);
     }
     return diagnosis;
 }
@@ -393,9 +491,11 @@ btnAnalyzeAll.onclick = async () => {
     
     const duration = video.duration;
     const startTime = performance.now();
+    const jumpType = jumpTypeSelect.value;
+    const coarseStep = parseFloat(sampleStepSelect.value);
     
     const coarseFrames = [];
-    for(let t=0; t<=duration; t+=0.2) {
+    for(let t=0; t<=duration; t+=coarseStep) {
         const data = await analyzeFrame(t, false);
         coarseFrames.push(data);
         if(coarseFrames.length % 10 === 0) {
@@ -403,7 +503,7 @@ btnAnalyzeAll.onclick = async () => {
         }
     }
     
-    // 识别起跳时刻：膝关节角度快速下降再回升
+    //识别踏跳时刻：膝关节快速变化（踏跳离地瞬间）
     let maxChange = 0, jumpCenter = duration/2;
     for(let i=1; i<coarseFrames.length; i++) {
         const prev = coarseFrames[i-1].rightKnee ?? 180;
@@ -415,14 +515,14 @@ btnAnalyzeAll.onclick = async () => {
         }
     }
     
-    // 精细采样起跳窗口
+    //踏跳窗口精细采样，固定0.033s精细步长
     const fineFrames = [];
     const fineStart = Math.max(0, jumpCenter - 0.5);
     const fineEnd = Math.min(duration, jumpCenter + 0.5);
     for(let t=fineStart; t<=fineEnd; t+=0.033) {
         const data = await analyzeFrame(t, true);
         fineFrames.push(data);
-        angleTextEl.innerText = `L膝:${data.leftKnee?.toFixed(1)??'-'}° R膝:${data.rightKnee?.toFixed(1)??'-'}°`;
+        angleTextEl.innerText = `L膝:${data.leftKnee?.toFixed(1)??'-'}° R膝:${data.rightKnee?.toFixed(1)??'-'}° 躯干:${data.torsoAngle?.toFixed(1)??'-'}°`;
     }
     
     const allFrames = [...coarseFrames];
@@ -432,41 +532,59 @@ btnAnalyzeAll.onclick = async () => {
     allFrames.sort((a,b) => a.time - b.time);
     const elapsed = ((performance.now() - startTime) / 1000).toFixed(1);
     
-    // 调用跳远诊断
-    const diag = getJumpDiagnosis(allFrames, jumpCenter);
+    let diag;
+    let titleName;
+    if(jumpType === 'back'){
+        diag = diagnosisBackStyle(allFrames, jumpCenter);
+        titleName = "背越式跳高专项技术诊断";
+    }else{
+        diag = diagnosisStraddleStyle(allFrames, jumpCenter);
+        titleName = "跨越式跳高专项技术诊断";
+    }
 
     document.getElementById('statFrames').textContent = allFrames.length;
     document.getElementById('statTime').textContent = elapsed;
     document.getElementById('statJump').textContent = jumpCenter.toFixed(2) + 's';
     
-    // ========== 生成报告：最上方增加诊断模块 ==========
+    // 跳高诊断模块
     let html = `<div class="diagnosis-block">
-        <div class="diagnosis-title">📋 跳远起跳专项技术诊断</div>
-        <div><strong>起跳窗口最小膝角：</strong>${diag.minKnee.toFixed(1)}°</div>
-        <div><strong>蹬伸最大髋角：</strong>${diag.maxHip.toFixed(1)}°</div>
-        <br/>
-        <div class="problem-text">【问题判定】</div>`;
+        <div class="diagnosis-title">📋 ${titleName}</div>`;
+    if(diag.minKnee !== null){
+        html += `<div><strong>踏跳窗口最小膝角：</strong>${diag.minKnee.toFixed(1)}°</div>`;
+    }else{
+        html += `<div><strong>踏跳窗口最小膝角：</strong>识别失败</div>`;
+    }
+    if(jumpType === 'back'){
+        html += `<div><strong>踏跳最大髋角：</strong>${diag.maxHip.toFixed(1)}°</div>
+        <div><strong>腾空最大躯干倒肩角：</strong>${diag.maxTorso.toFixed(1)}°</div>`;
+    }else{
+        html += `<div><strong>摆动腿最大摆髋角：</strong>${diag.maxSwingHip.toFixed(1)}°</div>
+        <div><strong>过杆躯干倾角：</strong>${diag.torsoPeak.toFixed(1)}°</div>`;
+    }
+    html += `<br/>
+    <div class="problem-text">【问题判定】</div>`;
     diag.problems.forEach(p=> html += `<div>• ${p}</div>`);
     html += `<br/><div class="suggest-text">【改进训练方案】</div>`;
     diag.suggestions.forEach(s=> html += `<div>• ${s}</div>`);
     html += `</div>`;
 
     html += `<div class="mb-4 p-3 bg-blue-50 rounded-lg text-sm">
-        <strong>分析完成：</strong>${allFrames.length}帧 | 耗时${elapsed}s | 起跳候选: ${jumpCenter.toFixed(2)}s
+        <strong>分析完成：</strong>${allFrames.length}帧 | 耗时${elapsed}s | 踏跳候选时刻: ${jumpCenter.toFixed(2)}s
     </div>`;
     
     html += `<table class="w-full text-xs"><thead><tr class="bg-slate-200">
-        <th class="p-2">时间</th><th class="p-2">左膝</th><th class="p-2">右膝</th><th class="p-2">左髋</th><th class="p-2">右髋</th>
+        <th class="p-2">时间</th><th class="p-2">左膝</th><th class="p-2">右膝</th><th class="p-2">左髋</th><th class="p-2">右髋</th><th class="p-2">躯干角</th>
     </tr></thead><tbody>`;
     
     allFrames.forEach(d => {
         const isJump = Math.abs(d.time - jumpCenter) < 0.1;
         html += `<tr class="${isJump ? 'highlight-row' : 'hover:bg-slate-50'}">
-            <td class="p-2 border-b">${d.time.toFixed(2)}s${isJump ? ' 🔥' : ''}</td>
+            <td class="p-2 border-b">${d.time.toFixed(2)}s${isJump ? '🔥踏跳' : ''}</td>
             <td class="p-2 border-b">${d.leftKnee?.toFixed(1)??'-'}</td>
             <td class="p-2 border-b">${d.rightKnee?.toFixed(1)??'-'}</td>
             <td class="p-2 border-b">${d.leftHip?.toFixed(1)??'-'}</td>
             <td class="p-2 border-b">${d.rightHip?.toFixed(1)??'-'}</td>
+            <td class="p-2 border-b">${d.torsoAngle?.toFixed(1)??'-'}</td>
         </tr>`;
     });
     html += '</tbody></table>';
