@@ -4,12 +4,102 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>跳高动作技术分析系统 | Pro</title>
+    <!-- 国内CDN镜像 + 自动回退 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        // 如果CDN加载失败，动态切换备用源
+        if (typeof tailwind === 'undefined') {
+            document.write('<script src="https://unpkg.com/tailwindcss@3.3.0/dist/tailwind.min.js"><\/script>');
+        }
+    </script>
+    <!-- ========== 这里换成PoseNet配套库，tfjs版本必须2.8.4 ========== -->
     <script src="https://unpkg.com/@tensorflow/tfjs@2.8.4/dist/tf.min.js"></script>
     <script src="https://unpkg.com/@tensorflow-models/posenet@2.2.2/dist/posenet.min.js"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
-    
     <style>
-        /* ... 保持之前的样式 ... */
+        /* 自定义动画和细节 */
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .video-container {
+            position: relative;
+            width: 100%;
+            aspect-ratio: 16/9;
+            background: #000;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        .video-container video,
+        .video-container canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+        .btn-primary {
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+        }
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4);
+        }
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        .status-loading { background: #fef3c7; color: #92400e; }
+        .status-success { background: #d1fae5; color: #065f46; }
+        .status-error { background: #fee2e2; color: #991b1b; }
+        .angle-display {
+            font-family: 'Courier New', monospace;
+            background: #1e293b;
+            color: #4ade80;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        .report-box {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 16px;
+            height: 500px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+        .highlight-row {
+            background: #fef3c7;
+            font-weight: bold;
+        }
+        /* 加载动画 */
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #3498db;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body class="bg-gradient-to-br from-slate-100 via-blue-50 to-slate-100 min-h-screen">
@@ -119,7 +209,7 @@
 </div>
 
 <script>
-let model = null;
+let net = null;
 const video = document.getElementById('srcVideo');
 const canvas = document.getElementById('poseCanvas');
 const ctx = canvas.getContext('2d');
@@ -158,13 +248,15 @@ function calcAngle(pA, vertex, pB) {
 
 btnLoadModel.onclick = async () => {
     try {
-        updateStatus('正在加载模型...', 'loading');
+        updateStatus('正在加载PoseNet模型...', 'loading');
         btnLoadModel.disabled = true;
         
-        model = await movenet.load({
-            modelType: movenet.ModelType.THUNDER,
-            enableSmoothing: true,
-            minPoseScore: 0.3
+        // ========== PoseNet加载 ==========
+        net = await posenet.load({
+            architecture: 'MobileNetV1',
+            outputStride: 16,
+            inputResolution: { width: 640, height: 480 },
+            quantBytes: 2
         });
         
         updateStatus('模型就绪', 'success');
@@ -202,8 +294,16 @@ function seekTo(time) {
 async function analyzeFrame(t, showPose = true) {
     await seekTo(t);
     offCtx.drawImage(video, 0, 0, offCanvas.width, offCanvas.height);
-    const res = await model.estimateSinglePose(offCanvas);
-    const kp = res.keypoints;
+    // ========== PoseNet推理 ==========
+    const pose = await net.estimateSinglePose(offCanvas);
+    const kpRaw = pose.keypoints;
+
+    // PoseNet关键点格式转换：把 {position:{x,y},score,part} 转为简单 {x,y,score}，兼容你原有角度计算
+    const kp = kpRaw.map(item => ({
+        x: item.position.x,
+        y: item.position.y,
+        score: item.score
+    }));
     
     if(showPose) drawPose(kp);
     
@@ -222,7 +322,7 @@ async function analyzeFrame(t, showPose = true) {
 }
 
 btnAnalyzeAll.onclick = async () => {
-    if(!model || !video.src) return alert("请先加载模型并上传视频");
+    if(!net || !video.src) return alert("请先加载模型并上传视频");
     
     updateStatus('分析中...', 'loading');
     btnAnalyzeAll.disabled = true;
