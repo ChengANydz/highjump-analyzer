@@ -12,7 +12,7 @@
             document.write('<script src="https://unpkg.com/tailwindcss@3.3.0/dist/tailwind.min.js"><\/script>');
         }
     </script>
-    <!-- ========== 这里换成PoseNet配套库，tfjs版本必须2.8.4 ========== -->
+    <!-- ========== PoseNet库，tfjs 2.8.4 ========== -->
     <script src="https://unpkg.com/@tensorflow/tfjs@2.8.4/dist/tf.min.js"></script>
     <script src="https://unpkg.com/@tensorflow-models/posenet@2.2.2/dist/posenet.min.js"></script>
     <style>
@@ -251,7 +251,6 @@ btnLoadModel.onclick = async () => {
         updateStatus('正在加载PoseNet模型...', 'loading');
         btnLoadModel.disabled = true;
         
-        // ========== PoseNet加载 ==========
         net = await posenet.load({
             architecture: 'MobileNetV1',
             outputStride: 16,
@@ -294,11 +293,9 @@ function seekTo(time) {
 async function analyzeFrame(t, showPose = true) {
     await seekTo(t);
     offCtx.drawImage(video, 0, 0, offCanvas.width, offCanvas.height);
-    // ========== PoseNet推理 ==========
     const pose = await net.estimateSinglePose(offCanvas);
     const kpRaw = pose.keypoints;
 
-    // PoseNet关键点格式转换：把 {position:{x,y},score,part} 转为简单 {x,y,score}，兼容你原有角度计算
     const kp = kpRaw.map(item => ({
         x: item.position.x,
         y: item.position.y,
