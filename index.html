@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>跳高动作技术分析系统 | High‑Jump Analyzer</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Tensorflow & PoseNet 人体姿态识别 -->
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.14.0/dist/tf.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/posenet@2.2.2/dist/posenet.min.js"></script>
+    <title>跳高动作技术分析系统 | High-Jump Analyzer</title>
+    <!-- 国内镜像CDN -->
+    <script src="https://unpkg.cnpmjs.org/tailwindcss@3.3.0/dist/tailwind.min.js"></script>
+    <script src="https://unpkg.cnpmjs.org/@tensorflow/tfjs@4.14.0/dist/tf.min.js"></script>
+    <script src="https://unpkg.cnpmjs.org/@tensorflow-models/movenet@1.2.1/dist/movenet.min.js"></script>
     <style>
         .video-wrap{position:relative;}
         .pose-canvas{position:absolute;top:0;left:0;pointer-events:none;}
@@ -16,248 +16,206 @@
 <body class="bg-slate-100 min-h-screen">
 <div class="max-w-7xl mx-auto px-4 py-8">
     <header class="mb-8">
-        <h1 class="text-3xl font-bold text-slate-800">🏃‍♂️ 跳高动作技术分析系统</h1>
-        <p class="text-slate-500 mt-2">上传跳高训练视频，AI识别人体姿态，诊断助跑‑起跳‑腾空‑过杆‑落地技术问题，输出训练改进方案</p>
+        <h1 class="text-3xl font-bold text-slate-800">🏃 跳高动作技术分析系统（逐帧角度追踪版）</h1>
+        <p class="text-slate-500 mt-2">上传跳高视频，逐帧追踪人体骨架，自动计算关节角度，分析全程发力特征</p>
     </header>
 
     <div class="grid lg:grid-cols-2 gap-8">
         <!-- 左侧视频处理区域 -->
         <div class="bg-white rounded-xl shadow p-6">
-            <h2 class="text-xl font-semibold mb-4">📹 视频输入与姿态可视化</h2>
+            <h2 class="text-xl font-semibold mb-4">视频输入与姿态可视化</h2>
             <div class="mb-4">
                 <label class="block mb-2 font-medium">上传跳高视频（mp4）</label>
-                <input type="file" id="videoFile" accept="video/mp4" class="block w-full text-sm border p-2 rounded">
+                <input type="file" id="videoFile" accept="video/mp4" class="block w-full sm border p-2 rounded">
             </div>
             <div class="video-wrap bg-black rounded overflow-hidden">
                 <video id="srcVideo" controls class="w-full"></video>
                 <canvas id="poseCanvas" class="pose-canvas w-full"></canvas>
             </div>
-            <div class="flex gap-3 mt-4">
-                <button id="btnLoadModel" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">加载姿态AI模型</button>
-                <button id="btnAnalyze" disabled class="bg-emerald-600 text-white px-4 py-2 rounded hover:bg-emerald-700 disabled:bg-gray-400">开始分析跳高技术</button>
+            <div class="flex gap-3 mt-4 flex-wrap">
+                <button id="btnLoadModel" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">加载MoveNet模型</button>
+                <button id="btnAnalyzeAll" disabled class="bg-emerald-600 text-white px-4 py-2 rounded hover:bg-emerald-700 disabled:bg-gray-400">✅ 逐帧全视频分析</button>
             </div>
-            <div class="mt-3 text-sm text-slate-600">
-                状态：<span id="statusText">等待加载模型</span>
-            </div>
+            <div class="mt-4">状态：<span id="status">等待加载模型</span></div>
+            <div class="mt-2">当前帧关节角度：<span id="angleText">-</span></div>
         </div>
 
-        <!-- 右侧分析报告输出 -->
+        <!-- 右侧分析结果 -->
         <div class="bg-white rounded-xl shadow p-6">
-            <h2 class="text-xl font-semibold mb-4">📋 AI动作诊断报告</h2>
-            <div id="reportBox" class="min-h-[450px] overflow-auto text-sm">
-                <div class="text-slate-400">上传跳高视频并执行分析，这里会输出动作问题识别、技术缺陷以及针对性训练建议</div>
-            </div>
-        </div>
-    </div>
-
-    <div class="mt-8 bg-white rounded-xl shadow p-6">
-        <h3 class="font-bold text-lg mb-3">📌系统分析维度（背越式跳高为主）</h3>
-        <div class="grid md:grid-cols-4 gap-4 text-sm">
-            <div class="border p-3 rounded">
-                <div class="font-medium">助跑阶段</div>
-                <ul class="text-slate-600 list-disc pl-4 mt-1">
-                    <li>步频步幅稳定性</li>
-                    <li>最后几步身体倾斜角度</li>
-                    <li>助跑弧线轨迹</li>
-                </ul>
-            </div>
-            <div class="border p-3 rounded">
-                <div class="font-medium">起跳阶段</div>
-                <ul class="text-slate-600 list-disc pl-4 mt-1">
-                    <li>起跳腿蹬伸充分度</li>
-                    <li>摆腿摆臂发力时序</li>
-                    <li>身体垂直向上发力角度</li>
-                </ul>
-            </div>
-            <div class="border p-3 rounded">
-                <div class="font-medium">腾空过杆</div>
-                <ul class="text-slate-600 list-disc pl-4 mt-1">
-                    <li>背弓姿态（髋部伸展）</li>
-                    <li>头、肩、髋、腿过杆顺序</li>
-                    <li>腾空身体旋转控制</li>
-                </ul>
-            </div>
-            <div class="border p-3 rounded">
-                <div class="font-medium">落地</div>
-                <ul class="text-slate-600 list-disc pl-4 mt-1">
-                    <li>身体团屈时机</li>
-                    <li>背部缓冲落地姿态</li>
-                </ul>
+            <h2 class="text-xl font-semibold mb-4">📋 全程动作诊断报告</h2>
+            <div id="report" class="whitespace-pre-wrap text-slate-700 h-96 overflow-y-auto">
+                上传视频、加载AI模型后，点击【逐帧全视频分析】，系统将逐帧识别骨架，计算每一帧髋膝肩肘角度，抓取起跳、腾空、落地阶段发力数据。
             </div>
         </div>
     </div>
 </div>
 
 <script>
-let posenetModel = null;
-const videoEl = document.getElementById('srcVideo');
-const canvasEl = document.getElementById('poseCanvas');
-const ctx = canvasEl.getContext('2d');
-const statusText = document.getElementById('statusText');
+let model = null;
+const video = document.getElementById('srcVideo');
+const canvas = document.getElementById('poseCanvas');
+const ctx = canvas.getContext('2d');
 const btnLoadModel = document.getElementById('btnLoadModel');
-const btnAnalyze = document.getElementById('btnAnalyze');
-const reportBox = document.getElementById('reportBox');
+const btnAnalyzeAll = document.getElementById('btnAnalyzeAll');
+const statusEl = document.getElementById('status');
+const reportEl = document.getElementById('report');
+const angleTextEl = document.getElementById('angleText');
 const fileInput = document.getElementById('videoFile');
 
-// 视频加载
-fileInput.addEventListener('change', e=>{
+// MoveNet 17个关键点索引
+const KEYPOINT_NAMES = [
+    "鼻子", "左眼", "右眼", "左耳", "右耳",
+    "左肩", "右肩", "左肘", "右肘", "左手腕", "右手腕",
+    "左髋", "右髋", "左膝", "右膝", "左脚踝", "右脚踝"
+];
+
+// 计算三点夹角函数：pointA-vertex-pointB，返回角度（°）
+function calcAngle(pA, vertex, pB) {
+    const v1x = pA.x - vertex.x;
+    const v1y = pA.y - vertex.y;
+    const v2x = pB.x - vertex.x;
+    const v2y = pB.y - vertex.y;
+
+    const dot = v1x*v2x + v1y*v2y;
+    const mag1 = Math.sqrt(v1x*v1x + v1y*v1y);
+    const mag2 = Math.sqrt(v2x*v2x + v2y*v2y);
+    if(mag1===0 || mag2===0) return null;
+    let rad = Math.acos( Math.max(-1, Math.min(1, dot/(mag1*mag2))) );
+    return rad * 180 / Math.PI;
+}
+
+// 加载MoveNet Thunder高精度模型
+btnLoadModel.onclick = async () => {
+    try {
+        statusEl.textContent = "正在加载MoveNet模型...";
+        model = await movenet.load(movenet.ModelType.THUNDER);
+        statusEl.textContent = "✅ MoveNet模型加载成功";
+        btnAnalyzeAll.disabled = false;
+    }catch(e){
+        statusEl.textContent = "❌模型加载失败: " + e.message;
+        console.error(e);
+    }
+}
+
+// 上传视频
+fileInput.onchange = e => {
     const file = e.target.files[0];
     if(!file) return;
     const url = URL.createObjectURL(file);
-    videoEl.src = url;
-});
-
-// 加载PoseNet模型
-btnLoadModel.onclick = async ()=>{
-    statusText.textContent = "正在加载姿态识别模型...";
-    try{
-        posenetModel = await posenet.load({
-            architecture: 'MobileNetV1',
-            outputStride:16,
-            inputResolution:{width:640,height:480},
-            multiplier:0.75
-        });
-        statusText.textContent = "✅模型加载完成，可以上传视频";
-        btnAnalyze.disabled = false;
-    }catch(err){
-        statusText.textContent = "❌模型加载失败："+err.message;
+    video.src = url;
+    video.onloadedmetadata = () => {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
     }
-};
+}
 
-// 绘制人体骨架关键点
-function drawPose(pose){
-    ctx.clearRect(0,0,canvasEl.width,canvasEl.height);
-    if(!pose || !pose.keypoints) return;
-    const keypoints = pose.keypoints;
-    // 设置画布尺寸跟随视频
-    canvasEl.width = videoEl.videoWidth;
-    canvasEl.height = videoEl.videoHeight;
-    canvasEl.style.width = videoEl.offsetWidth+'px';
-    canvasEl.style.height = videoEl.offsetHeight+'px';
+// 逐帧全视频分析按钮
+btnAnalyzeAll.onclick = async () => {
+    if(!model){
+        alert("请先加载AI模型");
+        return;
+    }
+    if(!video.src){
+        alert("请先上传视频");
+        return;
+    }
+    statusEl.textContent = "开始逐帧解析视频...";
+    reportEl.textContent = "";
+    video.pause();
 
-    // 关键点连线骨架
-    const adjacentKeyPoints = posenet.getAdjacentKeyPoints(keypoints,0.3);
-    adjacentKeyPoints.forEach(([a,b])=>{
-        ctx.beginPath();
-        ctx.moveTo(a.position.x, a.position.y);
-        ctx.lineTo(b.position.x, b.position.y);
-        ctx.lineWidth=3;
-        ctx.strokeStyle="#22c55e";
-        ctx.stroke();
-    });
-    // 绘制关键点圆点
+    const fps = 10; // 采样帧率，数值越大帧越多，速度越慢，跳高10帧每秒足够
+    const duration = video.duration;
+    const frameInterval = 1 / fps;
+    let frameDataList = [];
+
+    // 遍历每一采样帧
+    for(let t=0; t <= duration; t += frameInterval){
+        video.currentTime = t;
+        await new Promise(resolve => video.onseeked = resolve);
+
+        // 预测姿态
+        const res = await model.estimateSinglePose(video);
+        const kp = res.keypoints;
+        drawPose(kp);
+
+        // 计算各关节角度（只在关键点置信>0.4时计算）
+        const th = 0.4;
+        const angles = {};
+        // 左膝：左髋(11) - 左膝(13) - 左脚踝(15)
+        if(kp[11].score>th && kp[13].score>th && kp[15].score>th){
+            angles.leftKnee = calcAngle(kp[11], kp[13], kp[15]);
+        }
+        // 右膝：右髋(12)-右膝(14)-右脚踝(16)
+        if(kp[12].score>th && kp[14].score>th && kp[16].score>th){
+            angles.rightKnee = calcAngle(kp[12], kp[14], kp[16]);
+        }
+        // 左髋：左肩(5)-左髋(11)-左膝(13)
+        if(kp[5].score>th && kp[11].score>th && kp[13].score>th){
+            angles.leftHip = calcAngle(kp[5], kp[11], kp[13]);
+        }
+        // 右髋：右肩(6)-右髋(12)-右膝(14)
+        if(kp[6].score>th && kp[12].score>th && kp[14].score>th){
+            angles.rightHip = calcAngle(kp[6], kp[12], kp[14]);
+        }
+
+        frameDataList.push({time:t.toFixed(2), ...angles});
+        angleTextEl.innerText = `左膝:${angles.leftKnee?.toFixed(1)??"-"}° 右膝:${angles.rightKnee?.toFixed(1)??"-"}° 左髋:${angles.leftHip?.toFixed(1)??"-"}° 右髋:${angles.rightHip?.toFixed(1)??"-"}°`;
+        statusEl.textContent = `正在解析：${t.toFixed(2)}s / ${duration.toFixed(2)}s`;
+        await new Promise(r=>setTimeout(r,10));
+    }
+
+    // 汇总报告
+    let reportText = `===== 跳高全程逐帧姿态分析报告 =====
+总时长：${duration.toFixed(2)} s，采样帧率：${fps} fps，共${frameDataList.length}帧
+> 关节说明：膝角越小代表弯曲越大；髋角反映躯干和大腿夹角（背弓腾空时髋角度明显变化）
+
+【全部帧数据】(时间,左膝°,右膝°,左髋°,右髋°)
+`;
+    frameDataList.forEach(d=>{
+        reportText += `${d.time}s | LK:${d.leftKnee?.toFixed(1)??"-"} | RK:${d.rightKnee?.toFixed(1)??"-"} | LH:${d.leftHip?.toFixed(1)??"-"} | RH:${d.rightHip?.toFixed(1)??"-"}\n`;
+    })
+
+    // 自动寻找起跳候选帧（膝关节最大伸展，角度变大）
+    const validKneeFrames = frameDataList.filter(x=>x.rightKnee);
+    if(validKneeFrames.length>0){
+        const maxKneeFrame = validKneeFrames.reduce((a,b)=> (a.rightKnee > b.rightKnee)?a:b);
+        reportText += `\n🔥【发力关键点推荐】
+起跳候选帧：时间${maxKneeFrame.time}s，右膝伸展角度${maxKneeFrame.rightKnee.toFixed(1)}°
+>> 此帧膝关节充分蹬伸，大概率是蹬地发力峰值时刻，重点观察！
+`
+    }
+    reportEl.textContent = reportText;
+    statusEl.textContent = "✅ 全部帧分析完成！";
+}
+
+// 绘制人体关键点+骨架
+function drawPose(keypoints){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    // 画红点
     keypoints.forEach(kp=>{
-        if(kp.score>0.3){
+        if(kp.score > 0.4){
             ctx.beginPath();
-            ctx.arc(kp.position.x, kp.position.y,5,0,2*Math.PI);
-            ctx.fillStyle="#ef4444";
+            ctx.arc(kp.x, kp.y,5,0,2*Math.PI);
+            ctx.fillStyle="#ff2222";
             ctx.fill();
         }
     })
-}
-
-// 跳高姿态逻辑分析，输入关键点，输出问题+建议
-function analyzeHighJumpPose(keypoints){
-    const res = {
-        problems:[],
-        suggestions:[]
-    };
-    // 提取关键部位坐标
-    const nose = keypoints.find(k=>k.part==="nose");
-    const leftHip = keypoints.find(k=>k.part==="leftHip");
-    const rightHip = keypoints.find(k=>k.part==="rightHip");
-    const leftKnee = keypoints.find(k=>k.part==="leftKnee");
-    const rightKnee = keypoints.find(k=>k.part==="rightKnee");
-    const leftShoulder = keypoints.find(k=>k.part==="leftShoulder");
-    const rightShoulder = keypoints.find(k=>k.part==="rightShoulder");
-    const leftAnkle = keypoints.find(k=>k.part==="leftAnkle");
-    const rightAnkle = keypoints.find(k=>k.part==="rightAnkle");
-
-    const getScore = (kp)=>kp?kp.score:0;
-    const avgHipY = (getScore(leftHip)>0.3 && getScore(rightHip)>0.3) ? (leftHip.position.y + rightHip.position.y)/2 : null;
-    const avgShoulderY = (getScore(leftShoulder)>0.3 && getScore(rightShoulder)>0.3) ? (leftShoulder.position.y + rightShoulder.position.y)/2 : null;
-
-    // 1.过杆背弓判断：髋部高于肩膀是良好背越式背弓
-    if(avgHipY!==null && avgShoulderY!==null){
-        if(avgHipY > avgShoulderY + 25){
-            res.problems.push("❌腾空过杆背弓不足：髋关节下沉，没有充分顶髋，背弓弧度小，损失过杆高度");
-            res.suggestions.push("训练建议：1.垫上仰卧顶髋练习，强化腰背、髋伸肌群；2.过杆时刻主动做顶髋展腹动作；3.多做原地背弓模仿练习");
-        }else{
-            res.problems.push("✅腾空背弓姿态达标，髋部伸展充分");
+    // 骨架连线
+    const edges = [
+        [5,6], [5,7], [7,9], [6,8], [8,10],
+        [5,11], [6,12], [11,12],
+        [11,13], [13,15], [12,14], [14,16]
+    ];
+    ctx.strokeStyle="#00ff44";
+    ctx.lineWidth=3;
+    edges.forEach(([a,b])=>{
+        if(keypoints[a].score>0.4 && keypoints[b].score>0.4){
+            ctx.beginPath();
+            ctx.moveTo(keypoints[a].x, keypoints[a].y);
+            ctx.lineTo(keypoints[b].x, keypoints[a].y);
+            ctx.stroke();
         }
-    }else{
-        res.problems.push("⚠️该帧无法识别完整躯干关键点，请选择角度更完整的训练视频");
-    }
-
-    // 起跳腿判断：膝盖没有充分伸直
-    if(getScore(leftKnee)>0.3 && getScore(leftAnkle)>0.3){
-        const kneeY = leftKnee.position.y;
-        const ankleY = leftAnkle.position.y;
-        if(Math.abs(kneeY - ankleY) < 60){
-            res.problems.push("❌起跳阶段起跳腿蹬伸不充分，膝关节未完全伸直，垂直向上爆发力释放不足");
-            res.suggestions.push("训练建议：1.负重提踵、负重深蹲强化下肢蹬伸力量；2.原地起跳模仿练习，刻意做到起跳腿完全蹬直；3.起跳瞬间注意力放在脚掌全力蹬地向上");
-        }
-    }
-
-    // 头部姿态，过杆时头部过早抬起
-    if(nose && avgShoulderY && nose.score>0.3){
-        if(nose.position.y < avgShoulderY - 30){
-            res.problems.push("❌过杆时头部过早抬起，容易造成脊柱紧张，破坏背弓姿态");
-            res.suggestions.push("训练建议：过杆阶段保持头向后仰，眼睛看向身后垫子，不要抬头看横杆");
-        }
-    }
-
-    // 如果没有识别到有效人体
-    if(keypoints.every(k=>k.score<0.2)){
-        res.problems.push("⚠️视频帧未检测到运动员完整人体，请保证画面完整拍到运动员全身，避免遮挡");
-    }
-    return res;
-}
-
-// 主分析按钮
-btnAnalyze.onclick = async ()=>{
-    if(!posenetModel){
-        alert("请先加载AI姿态模型");
-        return;
-    }
-    if(!videoEl.src){
-        alert("请先上传跳高视频");
-        return;
-    }
-    statusText.textContent="正在逐帧解析动作，请稍候...";
-    reportBox.innerHTML = "<div class='text-blue-600'>正在解析视频姿态数据...</div>";
-
-    // 跳到视频中段，选取腾空过杆关键帧做分析
-    videoEl.currentTime = videoEl.duration * 0.55;
-    await new Promise(r=>setTimeout(r,800));
-
-    // 获取当前帧姿态
-    const pose = await posenetModel.estimateSinglePose(videoEl,{flipHorizontal:false});
-    drawPose(pose);
-    const analysis = analyzeHighJumpPose(pose.keypoints);
-
-    // 渲染报告
-    let html = `<div class="space-y-4">
-        <div><strong class="text-lg">🏋️跳高动作AI技术诊断报告</strong></div>
-        <div class="border-b pb-2">
-            <div class="font-medium">识别到的技术问题：</div>
-            <ul class="mt-2 space-y-2">`;
-    analysis.problems.forEach(p=>{
-        html += `<li>${p}</li>`;
     })
-    html += `</ul></div>
-    <div>
-        <div class="font-medium">💡针对性改进训练建议：</div>
-        <ul class="mt-2 space-y-2">`;
-    analysis.suggestions.forEach(s=>{
-        html += `<li>• ${s}</li>`;
-    })
-    html += `</ul>
-    </div>
-    <div class="mt-4 text-xs text-slate-400">说明：本分析基于浏览器端姿态识别，建议视频拍摄角度为侧面，完整拍到运动员全身；适合背越式跳高分析。</div>
-    </div>`;
-    reportBox.innerHTML = html;
-    statusText.textContent = "✅动作分析完成";
 }
 </script>
 </body>
