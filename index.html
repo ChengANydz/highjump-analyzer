@@ -3,20 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>跳高动作技术分析系统 | Pro</title>
-    <!-- 国内CDN镜像 + 自动回退 -->
+    <title>跳远动作技术分析系统 | Pro</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        // 如果CDN加载失败，动态切换备用源
-        if (typeof tailwind === 'undefined') {
-            document.write('<script src="https://unpkg.com/tailwindcss@3.3.0/dist/tailwind.min.js"><\/script>');
-        }
-    </script>
-    <!-- ========== PoseNet库，tfjs 2.8.4 ========== -->
+    <!-- PoseNet + tfjs 2.8.4 -->
     <script src="https://unpkg.com/@tensorflow/tfjs@2.8.4/dist/tf.min.js"></script>
     <script src="https://unpkg.com/@tensorflow-models/posenet@2.2.2/dist/posenet.min.js"></script>
     <style>
-        /* 自定义动画和细节 */
         .glass-panel {
             background: rgba(255, 255, 255, 0.95);
             backdrop-filter: blur(10px);
@@ -87,7 +79,29 @@
             background: #fef3c7;
             font-weight: bold;
         }
-        /* 加载动画 */
+        .diagnosis-block{
+            background-color:#dbeafe;
+            border-left:4px solid #2563eb;
+            padding:12px;
+            border-radius:8px;
+            margin-bottom:16px;
+            font-family:system-ui;
+            font-size:14px;
+            line-height:1.6;
+        }
+        .diagnosis-title{
+            font-weight:bold;
+            font-size:16px;
+            color:#1e40af;
+            margin-bottom:8px;
+        }
+        .problem-text{
+            color:#b91c1c;
+            font-weight:500;
+        }
+        .suggest-text{
+            color:#047857;
+        }
         .spinner {
             width: 20px;
             height: 20px;
@@ -104,20 +118,18 @@
 </head>
 <body class="bg-gradient-to-br from-slate-100 via-blue-50 to-slate-100 min-h-screen">
 <div class="max-w-7xl mx-auto px-4 py-8">
-    <!-- 头部 -->
     <header class="mb-8 text-center lg:text-left">
         <div class="flex items-center justify-center lg:justify-start gap-3 mb-2">
             <span class="text-4xl">🏃</span>
             <h1 class="text-3xl font-bold bg-gradient-to-r from-blue-600 to-emerald-600 bg-clip-text text-transparent">
-                跳高动作技术分析系统
+                跳远动作技术分析系统
             </h1>
             <span class="px-3 py-1 bg-blue-100 text-blue-700 text-xs font-bold rounded-full">PRO</span>
         </div>
-        <p class="text-slate-600">AI 逐帧追踪 · 智能起跳定位 · 关节角度精准计算</p>
+        <p class="text-slate-600">AI逐帧追踪 · 起跳点定位 · 关节角度计算 + 自动跳远技术诊断</p>
     </header>
 
     <div class="grid lg:grid-cols-5 gap-6">
-        <!-- 左侧：视频处理区 -->
         <div class="lg:col-span-3 bg-white rounded-2xl shadow-xl p-6 border border-slate-200">
             <div class="flex items-center justify-between mb-4">
                 <h2 class="text-xl font-semibold text-slate-800">📹 视频输入与姿态可视化</h2>
@@ -127,25 +139,22 @@
                 </span>
             </div>
 
-            <!-- 上传区域 -->
             <div class="mb-6 p-4 border-2 border-dashed border-slate-300 rounded-xl hover:border-blue-400 transition-colors bg-slate-50">
                 <label class="flex flex-col items-center cursor-pointer">
                     <svg class="w-8 h-8 text-slate-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
                     </svg>
-                    <span class="text-sm text-slate-600 font-medium">点击上传跳高视频（MP4格式）</span>
-                    <span class="text-xs text-slate-400 mt-1">支持拖拽上传，建议分辨率 720p 以上</span>
+                    <span class="text-sm text-slate-600 font-medium">点击上传跳远视频（MP4格式）</span>
+                    <span class="text-xs text-slate-400 mt-1">支持拖拽上传，建议分辨率720p</span>
                     <input type="file" id="videoFile" accept="video/mp4" class="hidden">
                 </label>
             </div>
 
-            <!-- 视频显示区 -->
             <div class="video-container mb-4">
                 <video id="srcVideo" controls class="w-full h-full"></video>
                 <canvas id="poseCanvas" class="pointer-events-none"></canvas>
             </div>
 
-            <!-- 控制按钮 -->
             <div class="flex flex-wrap gap-3 mb-4">
                 <button id="btnLoadModel" class="btn-primary bg-blue-600 text-white px-6 py-2.5 rounded-lg font-medium flex items-center gap-2">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -161,14 +170,12 @@
                 </button>
             </div>
 
-            <!-- 实时角度显示 -->
             <div class="bg-slate-800 rounded-lg p-4">
                 <div class="text-slate-400 text-xs mb-1">当前帧关节角度（实时）</div>
                 <div id="angleText" class="angle-display">等待分析...</div>
             </div>
         </div>
 
-        <!-- 右侧：分析报告 -->
         <div class="lg:col-span-2 bg-white rounded-2xl shadow-xl p-6 border border-slate-200 flex flex-col">
             <div class="flex items-center justify-between mb-4">
                 <h2 class="text-xl font-semibold text-slate-800">📊 全程动作诊断报告</h2>
@@ -183,13 +190,12 @@
                     <p>上传视频并点击分析后，此处将显示：</p>
                     <ul class="text-sm mt-2 text-left inline-block">
                         <li>• 逐帧关节角度数据</li>
-                        <li>• 智能起跳点定位</li>
-                        <li>• 发力峰值时刻标记</li>
+                        <li>• 起跳点定位 + 跳远专项技术诊断</li>
+                        <li>• 技术缺陷判定与改进方案</li>
                     </ul>
                 </div>
             </div>
 
-            <!-- 统计卡片 -->
             <div class="grid grid-cols-3 gap-3 mt-4">
                 <div class="bg-blue-50 rounded-lg p-3 text-center">
                     <div class="text-2xl font-bold text-blue-600" id="statFrames">-</div>
@@ -220,21 +226,38 @@ const reportEl = document.getElementById('report');
 const angleTextEl = document.getElementById('angleText');
 const fileInput = document.getElementById('videoFile');
 
-// 状态更新函数
-function updateStatus(text, type = 'loading') {
-    const colors = {
-        loading: 'bg-yellow-500',
-        success: 'bg-emerald-500',
-        error: 'bg-red-500'
-    };
-    statusBadge.className = `status-badge status-${type}`;
-    statusBadge.innerHTML = `<span class="w-2 h-2 ${colors[type]} rounded-full"></span>${text}`;
+// ========== 新增：关键点滑动滤波，解决骨架抖动、不贴合人体 ==========
+const filterBuffer = [];
+const FILTER_WINDOW = 3; // 取最近3帧做移动平均，平滑轨迹
+function smoothKeypoints(newKpRaw) {
+    filterBuffer.push(newKpRaw);
+    if(filterBuffer.length > FILTER_WINDOW) filterBuffer.shift();
+    const smoothed = [];
+    for(let i=0;i<17;i++){
+        let sumX=0,sumY=0,sumScore=0,count=0;
+        filterBuffer.forEach(frame=>{
+            const k = frame[i];
+            if(k.score>0.4){
+                sumX += k.position.x;
+                sumY += k.position.y;
+                sumScore += k.score;
+                count++;
+            }
+        })
+        if(count ===0){
+            smoothed.push({x:newKpRaw[i].position.x, y:newKpRaw[i].position.y, score:newKpRaw[i].score})
+        }else{
+            smoothed.push({
+                x: sumX/count,
+                y: sumY/count,
+                score: sumScore/count
+            })
+        }
+    }
+    return smoothed;
 }
 
-// 离屏Canvas优化
-const offCanvas = document.createElement('canvas');
-const offCtx = offCanvas.getContext('2d', { willReadFrequently: true });
-
+// 角度计算函数
 function calcAngle(pA, vertex, pB) {
     const v1x = pA.x - vertex.x, v1y = pA.y - vertex.y;
     const v2x = pB.x - vertex.x, v2y = pB.y - vertex.y;
@@ -246,18 +269,31 @@ function calcAngle(pA, vertex, pB) {
     return rad * 180 / Math.PI;
 }
 
+// 状态更新
+function updateStatus(text, type = 'loading') {
+    const colors = {
+        loading: 'bg-yellow-500',
+        success: 'bg-emerald-500',
+        error: 'bg-red-500'
+    };
+    statusBadge.className = `status-badge status-${type}`;
+    statusBadge.innerHTML = `<span class="w-2 h-2 ${colors[type]} rounded-full"></span>${text}`;
+}
+
+const offCanvas = document.createElement('canvas');
+const offCtx = offCanvas.getContext('2d', { willReadFrequently: true });
+
 btnLoadModel.onclick = async () => {
     try {
         updateStatus('正在加载PoseNet模型...', 'loading');
         btnLoadModel.disabled = true;
-        
+        // 降低分辨率，减少计算，缓解延迟
         net = await posenet.load({
             architecture: 'MobileNetV1',
-            outputStride: 16,
-            inputResolution: { width: 640, height: 480 },
-            quantBytes: 2
+            outputStride:16,
+            inputResolution:{width:512, height:384},
+            quantBytes:2
         });
-        
         updateStatus('模型就绪', 'success');
         btnAnalyzeAll.disabled = false;
         btnLoadModel.innerHTML = '✓ 模型已加载';
@@ -279,6 +315,7 @@ fileInput.onchange = e => {
         canvas.height = video.videoHeight;
         offCanvas.width = video.videoWidth;
         offCanvas.height = video.videoHeight;
+        filterBuffer.length = 0; // 切换视频清空滤波缓存
         updateStatus('视频已就绪', 'success');
     };
 };
@@ -294,33 +331,62 @@ async function analyzeFrame(t, showPose = true) {
     await seekTo(t);
     offCtx.drawImage(video, 0, 0, offCanvas.width, offCanvas.height);
     const pose = await net.estimateSinglePose(offCanvas);
-    const kpRaw = pose.keypoints;
-
-    const kp = kpRaw.map(item => ({
-        x: item.position.x,
-        y: item.position.y,
-        score: item.score
-    }));
-    
-    if(showPose) drawPose(kp);
-    
+    // 时序平滑
+    const kp = smoothKeypoints(pose.keypoints);
     const th = 0.4;
     const angles = { time: t };
     if(kp[11].score>th && kp[13].score>th && kp[15].score>th)
         angles.leftKnee = calcAngle(kp[11], kp[13], kp[15]);
     if(kp[12].score>th && kp[14].score>th && kp[16].score>th)
-        angles.rightKnee = calcAngle(kp[12], kp[14], kp[16]);
+        angles.rightKnee = calcAngle(kp[6], kp[12], kp[14]);
     if(kp[5].score>th && kp[11].score>th && kp[13].score>th)
         angles.leftHip = calcAngle(kp[5], kp[11], kp[13]);
     if(kp[6].score>th && kp[12].score>th && kp[14].score>th)
         angles.rightHip = calcAngle(kp[6], kp[12], kp[14]);
     
+    if(showPose) drawPose(kp);
     return angles;
+}
+
+// ========== 跳远专项自动诊断函数 ==========
+function getJumpDiagnosis(jumpDataList, jumpCenterTime){
+    // 提取起跳窗口内所有膝关节角度
+    const window = jumpDataList.filter(d=>Math.abs(d.time-jumpCenterTime)<0.5);
+    let minKneeAngle = 180;
+    let maxHipAngle = 0;
+    window.forEach(d=>{
+        if(d.rightKnee && d.rightKnee < minKneeAngle) minKneeAngle = d.rightKnee;
+        if(d.rightHip && d.rightHip > maxHipAngle) maxHipAngle = d.rightHip;
+    })
+    const diagnosis = {
+        minKnee: minKneeAngle,
+        maxHip: maxHipAngle,
+        problems:[],
+        suggestions:[]
+    };
+    // 判定规则，对标优秀运动员标准
+    if(minKneeAngle < 130){
+        diagnosis.problems.push("❌ 起跳缓冲屈膝过大（膝角"+minKneeAngle.toFixed(1)+"°，优秀运动员135~145°），过度屈膝会大量损耗水平助跑速度，蹬伸发力效率下降，损失远度。");
+        diagnosis.suggestions.push("✅ 改进：起跳着板时主动保持腿部刚性，减少膝关节下沉幅度；练习原地快速起跳（小幅度缓冲），强化支撑腿刚性。");
+    }else if(minKneeAngle >150){
+        diagnosis.problems.push("⚠️ 起跳缓冲不足，膝关节弯曲太少，没有充分利用肌肉弹性储能，蹬伸爆发力不足。");
+        diagnosis.suggestions.push("✅ 改进：助跑最后一步适度下压缓冲，做箱式跳、连续单脚跳，练习可控的屈膝缓冲。");
+    }else{
+        diagnosis.problems.push("✅ 膝关节缓冲角度处于优秀区间，缓冲控制良好。");
+    }
+
+    if(maxHipAngle <160){
+        diagnosis.problems.push("❌ 起跳蹬伸阶段伸髋不充分，髋关节打开不足，重心向前上方推送不够，腾起高度不足。");
+        diagnosis.suggestions.push("✅ 改进：强化臀大肌与髋伸力量；练习臀推、跨步跳，体会起跳瞬间髋关节向前顶送的发力感。");
+    }else{
+        diagnosis.problems.push("✅ 蹬伸阶段髋关节伸展充分。");
+    }
+    return diagnosis;
 }
 
 btnAnalyzeAll.onclick = async () => {
     if(!net || !video.src) return alert("请先加载模型并上传视频");
-    
+    filterBuffer.length=0;
     updateStatus('分析中...', 'loading');
     btnAnalyzeAll.disabled = true;
     reportEl.innerHTML = '<div class="flex items-center justify-center h-full"><div class="spinner"></div><span class="ml-2">正在分析...</span></div>';
@@ -328,7 +394,6 @@ btnAnalyzeAll.onclick = async () => {
     const duration = video.duration;
     const startTime = performance.now();
     
-    // 粗采样
     const coarseFrames = [];
     for(let t=0; t<=duration; t+=0.2) {
         const data = await analyzeFrame(t, false);
@@ -338,18 +403,19 @@ btnAnalyzeAll.onclick = async () => {
         }
     }
     
-    // 找起跳点
+    // 识别起跳时刻：膝关节角度快速下降再回升
     let maxChange = 0, jumpCenter = duration/2;
     for(let i=1; i<coarseFrames.length; i++) {
-        const prev = coarseFrames[i-1].rightKnee || 0;
-        const curr = coarseFrames[i].rightKnee || 0;
-        if(Math.abs(curr-prev) > maxChange) {
-            maxChange = Math.abs(curr-prev);
+        const prev = coarseFrames[i-1].rightKnee ?? 180;
+        const curr = coarseFrames[i].rightKnee ?? 180;
+        const delta = Math.abs(curr-prev);
+        if(delta > maxChange) {
+            maxChange = delta;
             jumpCenter = coarseFrames[i].time;
         }
     }
     
-    // 精细采样
+    // 精细采样起跳窗口
     const fineFrames = [];
     const fineStart = Math.max(0, jumpCenter - 0.5);
     const fineEnd = Math.min(duration, jumpCenter + 0.5);
@@ -359,22 +425,33 @@ btnAnalyzeAll.onclick = async () => {
         angleTextEl.innerText = `L膝:${data.leftKnee?.toFixed(1)??'-'}° R膝:${data.rightKnee?.toFixed(1)??'-'}°`;
     }
     
-    // 合并并生成报告
     const allFrames = [...coarseFrames];
     fineFrames.forEach(f => {
         if(!allFrames.some(c => Math.abs(c.time - f.time) < 0.01)) allFrames.push(f);
     });
     allFrames.sort((a,b) => a.time - b.time);
-    
     const elapsed = ((performance.now() - startTime) / 1000).toFixed(1);
     
-    // 更新统计
+    // 调用跳远诊断
+    const diag = getJumpDiagnosis(allFrames, jumpCenter);
+
     document.getElementById('statFrames').textContent = allFrames.length;
     document.getElementById('statTime').textContent = elapsed;
     document.getElementById('statJump').textContent = jumpCenter.toFixed(2) + 's';
     
-    // 生成报告HTML
-    let html = `<div class="mb-4 p-3 bg-blue-50 rounded-lg text-sm">
+    // ========== 生成报告：最上方增加诊断模块 ==========
+    let html = `<div class="diagnosis-block">
+        <div class="diagnosis-title">📋 跳远起跳专项技术诊断</div>
+        <div><strong>起跳窗口最小膝角：</strong>${diag.minKnee.toFixed(1)}°</div>
+        <div><strong>蹬伸最大髋角：</strong>${diag.maxHip.toFixed(1)}°</div>
+        <br/>
+        <div class="problem-text">【问题判定】</div>`;
+    diag.problems.forEach(p=> html += `<div>• ${p}</div>`);
+    html += `<br/><div class="suggest-text">【改进训练方案】</div>`;
+    diag.suggestions.forEach(s=> html += `<div>• ${s}</div>`);
+    html += `</div>`;
+
+    html += `<div class="mb-4 p-3 bg-blue-50 rounded-lg text-sm">
         <strong>分析完成：</strong>${allFrames.length}帧 | 耗时${elapsed}s | 起跳候选: ${jumpCenter.toFixed(2)}s
     </div>`;
     
