@@ -113,6 +113,23 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
+        /* =====新增：表格滚动容器，固定表头===== */
+        .table-scroll-wrap{
+            max-height:280px;
+            overflow-y:auto;
+            border:1px solid #e2e8f0;
+            border-radius:6px;
+        }
+        .table-scroll-wrap table{
+            width:100%;
+            border-collapse: collapse;
+        }
+        .table-scroll-wrap thead th{
+            position:sticky;
+            top:0;
+            background:#cbd5e1;
+            z-index:2;
+        }
     </style>
 </head>
 <body class="bg-gradient-to-br from-slate-100 via-blue-50 to-slate-100 min-h-screen">
@@ -572,9 +589,13 @@ btnAnalyzeAll.onclick = async () => {
         <strong>分析完成：</strong>${allFrames.length}帧 | 耗时${elapsed}s | 踏跳候选时刻: ${jumpCenter.toFixed(2)}s
     </div>`;
     
-    html += `<table class="w-full text-xs"><thead><tr class="bg-slate-200">
+    // ===== 改动：表格放到独立滚动容器里，表头固定 =====
+    html += `<div class="table-scroll-wrap">
+    <table class="w-full text-xs">
+    <thead><tr class="bg-slate-200">
         <th class="p-2">时间</th><th class="p-2">左膝</th><th class="p-2">右膝</th><th class="p-2">左髋</th><th class="p-2">右髋</th><th class="p-2">躯干角</th>
-    </tr></thead><tbody>`;
+    </tr></thead>
+    <tbody>`;
     
     allFrames.forEach(d => {
         const isJump = Math.abs(d.time - jumpCenter) < 0.1;
@@ -587,7 +608,7 @@ btnAnalyzeAll.onclick = async () => {
             <td class="p-2 border-b">${d.torsoAngle?.toFixed(1)??'-'}</td>
         </tr>`;
     });
-    html += '</tbody></table>';
+    html += '</tbody></table></div>';
     
     reportEl.innerHTML = html;
     updateStatus('分析完成', 'success');
