@@ -6,7 +6,7 @@
     <title>跳高动作技术分析系统 | Pro</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.14.0/dist/tf.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/movenet@1.2.1/dist/movenet.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection@2.1.0/dist/pose-detection.min.js"></script>
     <style>
         .glass-panel {
             background: rgba(255, 255, 255, 0.95);
@@ -53,7 +53,7 @@
             font-weight: 500;
         }
         .status-loading { background: #fef3c7; color: #92400e; }
-        .status-success { background: #d1fae5; color: #065f46; }
+        .status-success { background: #dcfce7; color: #166534; }
         .status-error { background: #fee2e2; color: #991b1b; }
         .angle-display {
             font-family: 'Courier New', monospace;
@@ -150,8 +150,7 @@
             <div class="flex items-center justify-between mb-4">
                 <h2 class="text-xl font-semibold text-slate-800">📹 视频输入与姿态可视化</h2>
                 <span id="statusBadge" class="status-badge status-loading">
-                    <span class="w-2 h-2 bg-yellow-500 rounded-full"></span>
-                    等待加载模型
+                    <span class="w-2 h-2 bg-yellow-500 rounded-full"></span>等待加载模型
                 </span>
             </div>
 
@@ -188,7 +187,7 @@
 
             <div class="video-container mb-4">
                 <video id="srcVideo" controls class="w-full h-full"></video>
-                <canvas id="poseCanvas" class="pointer-events-none"></canvas>
+                <canvas id="poseCanvas" class="pointer-events-none w-full h-full"></canvas>
             </div>
 
             <div class="flex flex-wrap gap-3 mb-4">
@@ -215,7 +214,7 @@
         <div class="lg:col-span-2 bg-white rounded-2xl shadow-xl p-6 border border-slate-200 flex flex-col">
             <div class="flex items-center justify-between mb-4">
                 <h2 class="text-xl font-semibold text-slate-800">📊 跳高全程动作诊断报告</h2>
-                <span class="text-xs px-2 py-1 bg-emerald-100 text-emerald-700 rounded-full font-medium">智能采样</span>
+                <span class="text-xs px-2 py-1 bg-emerald-100 text-emerald-700 rounded-full">智能采样</span>
             </div>
             
             <div id="report" class="report-box flex-1">
@@ -264,7 +263,7 @@ const fileInput = document.getElementById('videoFile');
 const jumpTypeSelect = document.getElementById('jumpTypeSelect');
 const sampleStepSelect = document.getElementById('sampleStepSelect');
 
-// 关键点滑动时序滤波，解决骨架抖动
+// 关键点滑动时序滤波，解决骨架抖动【适配MoveNet，修复.position报错】
 const filterBuffer = [];
 const FILTER_WINDOW = 3;
 function smoothKeypoints(newKpRaw) {
@@ -276,14 +275,14 @@ function smoothKeypoints(newKpRaw) {
         filterBuffer.forEach(frame=>{
             const k = frame[i];
             if(k.score>0.4){
-                sumX += k.position.x;
-                sumY += k.position.y;
+                sumX += k.x;
+                sumY += k.y;
                 sumScore += k.score;
                 count++;
             }
         })
         if(count ===0){
-            smoothed.push({x:newKpRaw[i].position.x, y:newKpRaw[i].position.y, score:newKpRaw[i].score})
+            smoothed.push({x:newKpRaw[i].x, y:newKpRaw[i].y, score:newKpRaw[i].score})
         }else{
             smoothed.push({
                 x: sumX/count,
@@ -322,14 +321,14 @@ const offCtx = offCanvas.getContext('2d', { willReadFrequently: true });
 
 btnLoadModel.onclick = async () => {
     try {
-        updateStatus('正在加载PoseNet模型...', 'loading');
+        updateStatus('正在加载MoveNet Thunder模型...', 'loading');
         btnLoadModel.disabled = true;
-        net = await posenet.load({
-            architecture: 'MobileNetV1',
-            outputStride:16,
-            inputResolution:{width:512, height:384},
-            quantBytes:2
-        });
+        net = await poseDetection.createDetector(
+            poseDetection.SupportedModels.MoveNet,
+            {
+                modelType: poseDetection.movenet.ModelType.THUNDER
+            }
+        );
         updateStatus('模型就绪', 'success');
         btnAnalyzeAll.disabled = false;
         btnLoadModel.innerHTML = '✓ 模型已加载';
@@ -366,8 +365,9 @@ function seekTo(time) {
 async function analyzeFrame(t, showPose = true) {
     await seekTo(t);
     offCtx.drawImage(video, 0, 0, offCanvas.width, offCanvas.height);
-    const pose = await net.estimateSinglePose(offCanvas);
-    const kp = smoothKeypoints(pose.keypoints);
+    const poses = await net.estimatePoses(offCanvas);
+    if (!poses.length) return null;
+    const kp = smoothKeypoints(poses[0].keypoints);
     const th = 0.4;
     const angles = { time: t };
     // 左膝：髋(11)-膝(13)-踝(15)
@@ -523,8 +523,8 @@ btnAnalyzeAll.onclick = async () => {
     //识别踏跳时刻：膝关节快速变化（踏跳离地瞬间）
     let maxChange = 0, jumpCenter = duration/2;
     for(let i=1; i<coarseFrames.length; i++) {
-        const prev = coarseFrames[i-1].rightKnee ?? 180;
-        const curr = coarseFrames[i].rightKnee ?? 180;
+        const prev = coarseFrames[i-1]?.rightKnee ?? 180;
+        const curr = coarseFrames[i]?.rightKnee ?? 180;
         const delta = Math.abs(curr-prev);
         if(delta > maxChange) {
             maxChange = delta;
@@ -539,12 +539,14 @@ btnAnalyzeAll.onclick = async () => {
     for(let t=fineStart; t<=fineEnd; t+=0.033) {
         const data = await analyzeFrame(t, true);
         fineFrames.push(data);
-        angleTextEl.innerText = `L膝:${data.leftKnee?.toFixed(1)??'-'}° R膝:${data.rightKnee?.toFixed(1)??'-'}° 躯干:${data.torsoAngle?.toFixed(1)??'-'}°`;
+        if(data){
+            angleTextEl.innerText = `L膝:${data.leftKnee?.toFixed(1)??'-'}° R膝:${data.rightKnee?.toFixed(1)??'-'}° 躯干:${data.torsoAngle?.toFixed(1)??'-'}°`;
+        }
     }
     
     const allFrames = [...coarseFrames];
     fineFrames.forEach(f => {
-        if(!allFrames.some(c => Math.abs(c.time - f.time) < 0.01)) allFrames.push(f);
+        if(f && !allFrames.some(c => c && Math.abs(c.time - f.time) < 0.01)) allFrames.push(f);
     });
     allFrames.sort((a,b) => a.time - b.time);
     const elapsed = ((performance.now() - startTime) / 1000).toFixed(1);
@@ -598,6 +600,7 @@ btnAnalyzeAll.onclick = async () => {
     <tbody>`;
     
     allFrames.forEach(d => {
+        if(!d) return;
         const isJump = Math.abs(d.time - jumpCenter) < 0.1;
         html += `<tr class="${isJump ? 'highlight-row' : 'hover:bg-slate-50'}">
             <td class="p-2 border-b">${d.time.toFixed(2)}s${isJump ? '🔥踏跳' : ''}</td>
