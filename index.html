@@ -263,7 +263,7 @@ const fileInput = document.getElementById('videoFile');
 const jumpTypeSelect = document.getElementById('jumpTypeSelect');
 const sampleStepSelect = document.getElementById('sampleStepSelect');
 
-// 关键点滑动时序滤波，解决骨架抖动【适配MoveNet，修复.position报错】
+// 关键点滑动时序滤波，解决骨架抖动
 const filterBuffer = [];
 const FILTER_WINDOW = 3;
 function smoothKeypoints(newKpRaw) {
@@ -323,10 +323,11 @@ btnLoadModel.onclick = async () => {
     try {
         updateStatus('正在加载MoveNet Thunder模型...', 'loading');
         btnLoadModel.disabled = true;
+        // ==========【修复这里！！】修正常量名称==========
         net = await poseDetection.createDetector(
             poseDetection.SupportedModels.MoveNet,
             {
-                modelType: poseDetection.movenet.ModelType.THUNDER
+                modelType: poseDetection.movenet.modelType.SINGLEPOSE_THUNDER
             }
         );
         updateStatus('模型就绪', 'success');
@@ -458,7 +459,7 @@ function diagnosisStraddleStyle(jumpDataList, jumpCenterTime){
         if(d.rightKnee){
             if(minKneeAngle === null || d.rightKnee < minKneeAngle) minKneeAngle = d.rightKnee;
         }
-        if(d.swingHipAngle && d.swingHipAngle>maxSwingHip) maxSwingHip = d.swingHipAngle;
+        if(d.swingHipAngle && d.swingHipAngle>maxSwingHip) maxSwingHip = d.swingHip;
         if(d.torsoAngle && d.torsoAngle>torsoPeak) torsoPeak = d.torsoAngle;
     });
     const diagnosis = {
