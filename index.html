@@ -321,9 +321,16 @@ const offCtx = offCanvas.getContext('2d', { willReadFrequently: true });
 
 btnLoadModel.onclick = async () => {
     try {
-        updateStatus('正在加载MoveNet Thunder模型...', 'loading');
+        updateStatus('正在初始化TF后端...', 'loading');
         btnLoadModel.disabled = true;
-        // ==========【修复这里！！】修正常量名称==========
+
+        // =========【关键修复1：强制使用webgl后端，禁用webgpu优先】=========
+        await tf.setBackend('webgl');
+        await tf.ready(); // 等待后端完全就绪！解决WebGPU未初始化报错
+        console.log("当前TF后端：", tf.getBackend());
+
+        updateStatus('正在加载MoveNet Thunder模型...', 'loading');
+        // =========【关键修复2：修正常量名称SINGLEPOSE_THUNDER】==========
         net = await poseDetection.createDetector(
             poseDetection.SupportedModels.MoveNet,
             {
